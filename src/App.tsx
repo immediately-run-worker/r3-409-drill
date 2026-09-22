@@ -5,7 +5,7 @@
 // window.__drill (plus the action functions) so a CDP drive can read and steer it.
 import React, { useEffect, useRef, useState } from 'react';
 import fs from 'fs';
-import { openSettings, createSpace, mount as mountById, onMountsChange } from '@immediately-run/sdk/mounts';
+import { openSettings, createSpace, mount as mountById, onMountsChange, listSpaces } from '@immediately-run/sdk/mounts';
 
 const SPACE_NAME = 'R3-409 two-tab drill';
 
@@ -207,7 +207,7 @@ export default function App() {
         return drill.watchEnded;
       },
     };
-    window.__drillActions = { create, startWatch, writeRoot, writeNested, postOp };
+    window.__drillActions = { create, startWatch, writeRoot, writeNested, postOp, listSpaces: () => listSpaces({ app: true }), mountExisting: (sid) => mountById('space:' + sid) };
   });
 
   return (
