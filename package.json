@@ -1,0 +1,13 @@
+{
+  "name": "r3-409-drill",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@immediately-run/sdk": "0.54.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "description": "R3-409 two-tab live drill: space mount + fs.promises.watch + writes"
+}
