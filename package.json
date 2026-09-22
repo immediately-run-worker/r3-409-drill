@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "main": "index.js",
   "dependencies": {
     "@immediately-run/sdk": "0.54.0",
     "react": "^19.2.5",
