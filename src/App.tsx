@@ -24,6 +24,10 @@ export default function App() {
     spaceId: null,
     watchOn: false,
     watchEnded: false,
+    events2: [],
+    watch2On: false,
+    watch2Root: null,
+    watch2Ended: false,
   }).current;
   const render = useState(0)[1];
   const bump = () => render((n) => n + 1);
@@ -122,6 +126,38 @@ export default function App() {
     }
   };
 
+  // Box-4 instrument: a SECOND, independent recursive watch on an arbitrary path
+  // (the settings mount in the drill). Remote space changes relayed into this
+  // frame must NOT surface here — a watch that never covers the space receives
+  // no events (no ambient broadcast across mounts).
+  const startWatchOn = async (path) => {
+    if (drill.watch2On || !path) return { ok: false, error: 'no path or already watching' };
+    drill.watch2On = true;
+    drill.watch2Root = path;
+    say('watch2 ' + path + ' (recursive)');
+    bump();
+    try {
+      const it = fs.promises.watch(path, { recursive: true });
+      (async () => {
+        try {
+          for await (const ev of it) {
+            drill.events2.push({ eventType: ev.eventType, filename: String(ev.filename), t: Date.now() });
+            bump();
+          }
+          drill.watch2Ended = true;
+          bump();
+        } catch (e) {
+          drill.events2.push({ eventType: 'watch2-error', filename: errText(e), t: Date.now() });
+          bump();
+        }
+      })();
+      return { ok: true, root: path };
+    } catch (e) {
+      say('watch2 error: ' + errText(e));
+      return { ok: false, error: errText(e) };
+    }
+  };
+
   const writeRoot = async () => {
     const name = 'spike-' + Date.now() + '.json';
     const p = drill.root + '/' + name;
@@ -206,8 +242,23 @@ export default function App() {
       get watchEnded() {
         return drill.watchEnded;
       },
+      get events2() {
+        return drill.events2;
+      },
+      get watch2On() {
+        return drill.watch2On;
+      },
+      get watch2Root() {
+        return drill.watch2Root;
+      },
+      get watch2Ended() {
+        return drill.watch2Ended;
+      },
+      get settingsPath() {
+        return drill.settingsPath;
+      },
     };
-    window.__drillActions = { create, startWatch, writeRoot, writeNested, postOp, listSpaces: () => listSpaces({ app: true }), mountExisting: (sid) => mountById('space:' + sid) };
+    window.__drillActions = { create, startWatch, startWatchOn, writeRoot, writeNested, postOp, listSpaces: () => listSpaces({ app: true }), mountExisting: (sid) => mountById('space:' + sid) };
   });
 
   return (
@@ -235,6 +286,14 @@ export default function App() {
       <h3>watch events ({drill.events.length})</h3>
       <ul>
         {drill.events.slice(-12).map((e, i) => (
+          <li key={i}>
+            {e.t} {e.eventType} {e.filename}
+          </li>
+        ))}
+      </ul>
+      <h3>watch2 events ({drill.events2.length})</h3>
+      <ul>
+        {drill.events2.slice(-12).map((e, i) => (
           <li key={i}>
             {e.t} {e.eventType} {e.filename}
           </li>
