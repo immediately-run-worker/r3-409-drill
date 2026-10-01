@@ -57,11 +57,17 @@ export default function App() {
           /* no remembered space yet */
         }
         if (cfg.spaceId) {
-          const m = await mountById('space:' + cfg.spaceId);
-          drill.spaceId = cfg.spaceId;
-          drill.root = m.path;
-          drill.mountInfo = { path: m.path, mode: m.mode, type: m.type, id: m.id, name: m.name };
-          say('mounted remembered ' + cfg.spaceId + ' @ ' + m.path + ' mode=' + m.mode);
+          try {
+            const m = await mountById('space:' + cfg.spaceId);
+            drill.spaceId = cfg.spaceId;
+            drill.root = m.path;
+            drill.mountInfo = { path: m.path, mode: m.mode, type: m.type, id: m.id, name: m.name };
+            say('mounted remembered ' + cfg.spaceId + ' @ ' + m.path + ' mode=' + m.mode);
+          } catch (e) {
+            // A remembered-but-deleted space must not wedge the drill: fall back
+            // to the create path (the box-3 delete leaves exactly this behind).
+            say('no remembered space (stale ' + cfg.spaceId + ': ' + errText(e) + ') — press Create');
+          }
         } else {
           say('no remembered space — press Create');
         }
@@ -194,16 +200,27 @@ export default function App() {
     return rec;
   };
 
+  // Post-teardown probe, unambiguous: (1) read a file this run DID write (alive
+  // mount would serve it; a torn-down one must not), (2) attempt a write (§6.1:
+  // terminal forbidden on the revoked port — never a hang, never a silent no-op).
   const postOp = async () => {
-    const rec = { t: Date.now() };
-    try {
-      await fs.promises.readFile(drill.root + '/spike-missing.json', 'utf8');
-      rec.ok = true;
-      rec.note = 'unexpected success';
-    } catch (e) {
-      rec.ok = false;
-      rec.error = errText(e);
-    }
+    const existing = drill.writes.find((w) => w.ok);
+    const rec = { t: Date.now(), probes: [] };
+    const probe = async (name, fn) => {
+      const p = { name, t: Date.now() };
+      try {
+        await fn();
+        p.ok = true;
+        p.note = 'UNEXPECTED SUCCESS';
+      } catch (e) {
+        p.ok = false;
+        p.error = errText(e);
+      }
+      p.tDone = Date.now();
+      rec.probes.push(p);
+    };
+    if (existing) await probe('read-existing', () => fs.promises.readFile(existing.path, 'utf8'));
+    await probe('write-new', () => fs.promises.writeFile(drill.root + '/post-teardown-' + Date.now() + '.txt', 'x'));
     rec.tDone = Date.now();
     drill.postOps.push(rec);
     bump();
